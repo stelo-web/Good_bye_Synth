@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Micro-Adjuster</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f4f4f4; }
+        .container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        canvas { display: none; }
+        #status { margin-top: 1rem; color: #666; }
+        button { padding: 10px 20px; cursor: pointer; background: #0070f3; color: white; border: none; border-radius: 5px; margin-top: 10px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Pixel Micro-Adjuster</h2>
+    <p>PNGを選択すると、各ピクセルを±1の範囲でランダムに調整します。</p>
+    <input type="file" id="upload" accept="image/png">
+    <div id="status"></div>
+    <a id="downloadLink" style="display:none;"><button>加工後の画像をダウンロード</button></a>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    const upload = document.getElementById('upload');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    const downloadLink = document.getElementById('downloadLink');
+
+    upload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                // キャンバスサイズを画像に合わせる
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                // ピクセルデータを取得
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+
+                // 1pxずつ処理 (R, G, B, A の順で並んでいる)
+                for (let i = 0; i < data.length; i += 4) {
+                    // -1, 0, +1 のいずれかをランダムに加算（目に見えないレベルの変化）
+                    const noiseR = Math.floor(Math.random() * 3) - 1;
+                    const noiseG = Math.floor(Math.random() * 3) - 1;
+                    const noiseB = Math.floor(Math.random() * 3) - 1;
+
+                    data[i]     = Math.min(255, Math.max(0, data[i] + noiseR));     // Red
+                    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noiseG)); // Green
+                    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noiseB)); // Blue
+                    // data[i+3] (Alpha) は変更しない
+                }
+
+                // 変更したデータをキャンバスに戻す
+                ctx.putImageData(imageData, 0, 0);
+
+                // ダウンロードリンクを作成
+                const processedDataUrl = canvas.toDataURL('image/png');
+                downloadLink.href = processedDataUrl;
+                downloadLink.download = `micro_adjusted_${file.name}`;
+                downloadLink.style.display = 'block';
+                status.innerText = "処理完了！ダウンロードボタンを押してください。";
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        status.innerText = "処理中...";
+    });
+</script>
+
+</body>
+</html>
