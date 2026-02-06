@@ -3,37 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Freq Noise Processor</title>
+    <title>Total Noise Injector</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #0f1115; color: #e0e0e0; margin: 0; padding: 20px; }
-        .card { background: #1c1e26; padding: 25px; border-radius: 20px; width: 100%; max-width: 450px; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.7); border: 1px solid #333; }
-        #previewContainer { position: relative; margin-top: 20px; display: none; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid #444; background: #000; }
-        #displayImg { width: 100%; display: block; transition: opacity 0.5s; }
-        #scanLine { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: cyan; box-shadow: 0 0 15px cyan; display: none; z-index: 10; }
-        #status { margin-top: 15px; font-weight: bold; color: cyan; font-family: monospace; }
-        .instruction { font-size: 0.85rem; color: #aaa; margin-top: 15px; line-height: 1.5; }
-        input[type="file"] { margin: 20px 0; width: 100%; }
+        body { font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; background: #050505; color: #00ff41; margin: 0; padding: 20px; }
+        .card { background: #111; padding: 25px; border-radius: 5px; width: 100%; max-width: 450px; text-align: center; border: 1px solid #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.2); }
+        #previewContainer { position: relative; margin-top: 20px; display: none; width: 100%; border: 1px solid #333; overflow: hidden; }
+        #displayImg { width: 100%; display: block; filter: contrast(1.05); }
+        #scanLine { position: absolute; top: 0; left: 0; width: 100%; height: 1px; background: #00ff41; box-shadow: 0 0 10px #00ff41; display: none; }
+        #status { margin: 15px 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; }
+        .instruction { font-size: 0.75rem; color: #888; margin-top: 15px; }
+        input[type="file"] { margin: 20px 0; color: #00ff41; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h3>Frequency Noise Injector</h3>
-    <p style="font-size: 0.75rem; color: #888;">Low / Mid / High 周波数帯に不可視のノイズを注入</p>
+    <h3>DATA ENTROPY INJECTOR</h3>
+    <p style="font-size: 0.7rem; color: #008f11;">FULL-SPECTRUM LATENT NOISE</p>
     
-    <input type="file" id="upload" accept="image/png, image/jpeg">
+    <input type="file" id="upload" accept="image/png">
     
-    <div id="status">Ready</div>
+    <div id="status">System Ready</div>
 
     <div id="previewContainer">
         <canvas id="canvas" style="display:none;"></canvas>
-        <img id="displayImg" alt="Processed output">
+        <img id="displayImg">
         <div id="scanLine"></div>
     </div>
     
     <p id="saveHint" class="instruction" style="display:none;">
-        ✨ 処理完了 ✨<br>
-        画像を<b>長押し</b>して「画像を保存」を選択してください。
+        [SEQUENCE COMPLETE]<br>
+        画像を<b>長押し</b>して「保存」してください。<br>
+        この画像はAI再構築のための「種」となります。
     </p>
 </div>
 
@@ -54,7 +55,7 @@
         const img = new Image();
         img.src = URL.createObjectURL(file);
 
-        img.onload = async () => {
+        img.onload = () => {
             canvas.width = img.width;
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
@@ -62,72 +63,63 @@
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
-            // 表示更新
             previewContainer.style.display = 'block';
             displayImg.src = img.src;
-            displayImg.style.opacity = "0.5";
             scanLine.style.display = 'block';
             saveHint.style.display = 'none';
 
-            // 擬似スキャンアニメーション
-            const duration = 2500; 
+            const duration = 3000; 
             const start = performance.now();
 
-            async function process() {
-                // 1. 低・中周波ノイズ（色のムラ）の生成
-                // 小さなキャンバスにランダムな色を描いて引き伸ばすことで「ぼけたムラ」を作る
-                const tempCanvas = document.createElement('canvas');
-                const tCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = 10;  // 低周波 (大きなムラ)
-                tempCanvas.height = 10;
-                const tempImgData = tCtx.createImageData(10, 10);
-                for(let i=0; i<tempImgData.data.length; i+=4) {
-                    const val = (Math.random() - 0.5) * 2; // ±1.0
-                    tempImgData.data[i] = tempImgData.data[i+1] = tempImgData.data[i+2] = 128 + val;
-                    tempImgData.data[i+3] = 255;
-                }
-                tCtx.putImageData(tempImgData, 0, 0);
-
-                // 2. 元の画像にミックス
+            function injectAll() {
                 for (let i = 0; i < data.length; i += 4) {
                     const x = (i / 4) % canvas.width;
                     const y = Math.floor((i / 4) / canvas.width);
 
-                    // --- 高周波 (1pxノイズ) ---
-                    const hf = (Math.random() - 0.5) * 0.4; 
+                    // 1. 高周波 (Pixel-level White Noise)
+                    const hf = (Math.random() - 0.5) * 0.5;
 
-                    // --- 中・低周波 (周辺の色ムラを擬似的に計算) ---
-                    // 本来は引き伸ばした画像をサンプリングするが、簡略化のため座標依存の乱数
-                    const mf = Math.sin(x * 0.05) * Math.cos(y * 0.05) * 0.2; 
-                    const lf = Math.sin(x * 0.01) * 0.1;
+                    // 2. 中周波 (Mid-range Turbulence)
+                    const mf = Math.sin(x * 0.1) * Math.cos(y * 0.1) * 0.3;
 
-                    const totalNoise = hf + mf + lf;
+                    // 3. 低周波 (Global Drift)
+                    const lf = Math.sin(x * 0.01 + y * 0.01) * 0.2;
 
-                    data[i]     += totalNoise; // R
-                    data[i + 1] += totalNoise; // G
-                    data[i + 2] += totalNoise; // B
-                }
+                    // 4. 色相/彩度への揺らぎ (Chromatic Aberration Noise)
+                    const colorNoiseR = (Math.random() - 0.5) * 0.2;
+                    const colorNoiseG = (Math.random() - 0.5) * 0.2;
+                    const colorNoiseB = (Math.random() - 0.5) * 0.2;
 
-                function animate(now) {
-                    const elapsed = now - start;
-                    const progress = Math.min(elapsed / duration, 1);
-                    scanLine.style.top = (progress * 100) + '%';
-                    status.innerText = `Analyzing Frequencies: ${Math.floor(progress * 100)}%`;
-
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        ctx.putImageData(imageData, 0, 0);
-                        displayImg.src = canvas.toDataURL('image/png');
-                        displayImg.style.opacity = "1";
-                        status.innerText = "Injection Complete";
-                        scanLine.style.display = 'none';
-                        saveHint.style.display = 'block';
+                    // すべてを統合
+                    data[i]     = Math.min(255, Math.max(0, data[i] + hf + mf + lf + colorNoiseR));     // R
+                    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + hf + mf + lf + colorNoiseG)); // G
+                    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + hf + mf + lf + colorNoiseB)); // B
+                    
+                    // 5. 不可視のアルファノイズ (メタデータ/透過レイヤーへの干渉)
+                    if (data[i+3] > 250) {
+                        data[i+3] = 255 - Math.floor(Math.random() * 2); 
                     }
                 }
-                requestAnimationFrame(animate);
             }
-            process();
+
+            function animate(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / duration, 1);
+                scanLine.style.top = (progress * 100) + '%';
+                status.innerText = `Injecting Entropy: ${Math.floor(progress * 100)}%`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    injectAll();
+                    ctx.putImageData(imageData, 0, 0);
+                    displayImg.src = canvas.toDataURL('image/png');
+                    status.innerText = "ENTROPY MAXIMIZED";
+                    scanLine.style.display = 'none';
+                    saveHint.style.display = 'block';
+                }
+            }
+            requestAnimationFrame(animate);
         };
     });
 </script>
