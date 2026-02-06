@@ -3,79 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Micro-Adjuster</title>
+    <title>Pixel Micro-Processor</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f4f4f4; }
-        .container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        canvas { display: none; }
-        #status { margin-top: 1rem; color: #666; }
-        button { padding: 10px 20px; cursor: pointer; background: #0070f3; color: white; border: none; border-radius: 5px; margin-top: 10px; }
-        button:disabled { background: #ccc; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #111; color: #eee; margin: 0; padding: 20px; }
+        .card { background: #222; padding: 20px; border-radius: 15px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #previewContainer { position: relative; margin-top: 20px; display: none; width: 100%; overflow: hidden; border-radius: 8px; border: 1px solid #444; }
+        #displayImg { width: 100%; display: block; }
+        /* 加工中を視覚化するスキャンライン */
+        #scanLine { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: #00ff88; box-shadow: 0 0 10px #00ff88; display: none; pointer-events: none; }
+        #status { margin-top: 15px; font-size: 0.9rem; color: #00ff88; min-height: 1.2em; }
+        input[type="file"] { margin: 20px 0; color: #ccc; }
+        .instruction { font-size: 0.8rem; color: #888; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Pixel Micro-Adjuster</h2>
-    <p>PNGを選択すると、各ピクセルを±1の範囲でランダムに調整します。</p>
-    <input type="file" id="upload" accept="image/png">
-    <div id="status"></div>
-    <a id="downloadLink" style="display:none;"><button>加工後の画像をダウンロード</button></a>
-</div>
+<div class="card">
+    <h3>Pixel Micro-Adjuster</h3>
+    <p style="font-size: 0.8rem;">不可視のノイズを1pxずつ付与します</p>
+    
+    <input type="file" id="upload" accept="image/png, image/jpeg">
+    
+    <div id="status">画像を選択してください</div>
 
-<canvas id="canvas"></canvas>
+    <div id="previewContainer">
+        <canvas id="canvas" style="display:none;"></canvas>
+        <img id="displayImg" alt="加工後の画像">
+        <div id="scanLine"></div>
+    </div>
+    
+    <p id="saveHint" class="instruction" style="display:none;">完了しました！<br>上の画像を<b>長押し</b>して保存してください。</p>
+</div>
 
 <script>
     const upload = document.getElementById('upload');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const displayImg = document.getElementById('displayImg');
+    const previewContainer = document.getElementById('previewContainer');
+    const scanLine = document.getElementById('scanLine');
     const status = document.getElementById('status');
-    const downloadLink = document.getElementById('downloadLink');
+    const saveHint = document.getElementById('saveHint');
 
-    upload.addEventListener('change', (e) => {
+    upload.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                // キャンバスサイズを画像に合わせる
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
 
-                // ピクセルデータを取得
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
+        img.onload = async () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
 
-                // 1pxずつ処理 (R, G, B, A の順で並んでいる)
-                for (let i = 0; i < data.length; i += 4) {
-                    // -1, 0, +1 のいずれかをランダムに加算（目に見えないレベルの変化）
-                    const noiseR = Math.floor(Math.random() * 3) - 1;
-                    const noiseG = Math.floor(Math.random() * 3) - 1;
-                    const noiseB = Math.floor(Math.random() * 3) - 1;
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
 
-                    data[i]     = Math.min(255, Math.max(0, data[i] + noiseR));     // Red
-                    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noiseG)); // Green
-                    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noiseB)); // Blue
-                    // data[i+3] (Alpha) は変更しない
+            // 表示の準備
+            previewContainer.style.display = 'block';
+            displayImg.src = img.src; // 最初は元の画像を表示
+            scanLine.style.display = 'block';
+            saveHint.style.display = 'none';
+
+            // --- 視覚的な「加工演出」 ---
+            // 実際は一瞬で終わる処理ですが、スキャンラインを動かして
+            // どこを処理しているか目視できるようにします。
+            const duration = 2000; // 2秒かけて全体をスキャン（1pxごとだと終わらないため）
+            const start = performance.now();
+
+            async function animateScan(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // スキャンラインの位置を更新
+                scanLine.style.top = (progress * 100) + '%';
+                status.innerText = `Processing: ${Math.floor(progress * 100)}%`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateScan);
+                } else {
+                    // 全ピクセルにランダムな微細ノイズを付与
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i]     += (Math.random() * 0.4 - 0.2); // ±0.2の微調整
+                        data[i + 1] += (Math.random() * 0.4 - 0.2);
+                        data[i + 2] += (Math.random() * 0.4 - 0.2);
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+
+                    // 結果をimgタグに反映（これで長押し保存可能になる）
+                    displayImg.src = canvas.toDataURL('image/png');
+                    
+                    status.innerText = "Processing Complete";
+                    scanLine.style.display = 'none';
+                    saveHint.style.display = 'block';
                 }
-
-                // 変更したデータをキャンバスに戻す
-                ctx.putImageData(imageData, 0, 0);
-
-                // ダウンロードリンクを作成
-                const processedDataUrl = canvas.toDataURL('image/png');
-                downloadLink.href = processedDataUrl;
-                downloadLink.download = `micro_adjusted_${file.name}`;
-                downloadLink.style.display = 'block';
-                status.innerText = "処理完了！ダウンロードボタンを押してください。";
-            };
-            img.src = event.target.result;
+            }
+            requestAnimationFrame(animateScan);
         };
-        reader.readAsDataURL(file);
-        status.innerText = "処理中...";
     });
 </script>
 
